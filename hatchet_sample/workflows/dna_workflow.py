@@ -29,7 +29,7 @@ dna_workflow = hatchet.workflow(name="dna-workflow", on_events=["dna:process"])
         'gpu': DesiredWorkerLabel(value='nvidia', required=True),
     }
 )
-async def align(workflow_input: WorkflowInput, context: Context) -> AlignOutput:
+def align(workflow_input: WorkflowInput, context: Context) -> AlignOutput:
     # This task runs on a worker with NVidia GPU
     print("******* Performing alignment on worker with NVidia GPU... *******")
     print(f"Workflow input: {workflow_input}")
@@ -53,13 +53,13 @@ async def align(workflow_input: WorkflowInput, context: Context) -> AlignOutput:
         ),
     }
 )
-async def extract(workflow_input: WorkflowInput, context: Context) -> ExtractOutput:
+def extract(workflow_input: WorkflowInput, context: Context) -> ExtractOutput:
     # This task runs on a worker with high RAM
     print("******* Performing extraction on worker with high RAM... *******")
     print(f"Workflow input: {workflow_input}")
 
     # Access output from "ALIGN" task
-    align_result = await context.task_output(align)
+    align_result = context.task_output(align)
     print(f"Align result: {align_result.result}")
 
     ## TODO: Implement extraction logic here
