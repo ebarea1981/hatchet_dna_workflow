@@ -1,0 +1,19 @@
+[project]
+name = "hatchet-sample"
+version = "0.1.0"
+description = "A DNA workflow using Hatchet with GPU and high-memory workers"
+authors = [{name = "Eduardo Barea", email = "ebarea@epimethyL.com"}]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+hatchet-sdk = ">=1.8.1,<2.0.0"
+pydantic = ">=2.0.0,<3.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.2"
+pytest-asyncio = "^0.23.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
