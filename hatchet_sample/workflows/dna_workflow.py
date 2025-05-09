@@ -1,22 +1,20 @@
-from hatchet_sdk import Hatchet, Context, WorkerLabelComparator
+from hatchet_sdk import Context, WorkerLabelComparator
 from hatchet_sdk.labels import DesiredWorkerLabel
-from typing import Dict, Any, Annotated
+from typing import Dict, Any
 from pydantic import BaseModel
-import threading
-import time
-
 from hatchet_sample import hatchet
 
 # Define input and output models using Pydantic for type safety
 class WorkflowInput(BaseModel):
     data: Dict[str, Any]
 
-class AlignInput(BaseModel):
-    data: Dict[str, Any]
+class AlignOutput(BaseModel):
+    result: str
+    status: str
 
-class ExtractInput(BaseModel):
-    align_input: Dict[str, Any]
-    align_result: Dict[str, Any]
+class ExtractOutput(BaseModel):
+    result: Dict[str, Any]
+    status: str
 
 class WorkflowOutput(BaseModel):
     align_result: Dict[str, Any]
@@ -31,16 +29,18 @@ dna_workflow = hatchet.workflow(name="dna-workflow", on_events=["dna:process"])
         'gpu': DesiredWorkerLabel(value='nvidia', required=True),
     }
 )
-async def align(align_input: AlignInput, context: Context) -> Annotated[Dict[str, Any], "align_result"]:
+async def align(workflow_input: WorkflowInput, context: Context) -> AlignOutput:
     # This task runs on a worker with NVidia GPU
     print("******* Performing alignment on worker with NVidia GPU... *******")
+    print(f"Workflow input: {workflow_input}")
     
-    # input_data = context.input.get("data", {})
-    # align_input = AlignInput(data=input_data)
-    # Implement alignment logic here
+    ## TODO: Implement alignment logic here
     
     print("******* Alignment complete *******")
-    return {"aligned_data": "aligned_result", "status": "success"}
+    return AlignOutput(
+        result="ALIGNMENT SUCCESS",
+        status="success"
+    )
 
 @dna_workflow.task(
     name="extract",
@@ -53,20 +53,24 @@ async def align(align_input: AlignInput, context: Context) -> Annotated[Dict[str
         ),
     }
 )
-async def extract(extract_input: ExtractInput, context: Context) -> Annotated[Dict[str, Any], "extract_result"]:
+async def extract(workflow_input: WorkflowInput, context: Context) -> ExtractOutput:
     # This task runs on a worker with high RAM
     print("******* Performing extraction on worker with high RAM... *******")
-    workflow_input = context.input.get("data", {})
     print(f"Workflow input: {workflow_input}")
-    
-    # align_result = context.get_previous_step_output("align", {})
-    # print(f"Align result: {align_result}")
-    
-    # extract_input = ExtractInput(align_input=workflow_input, align_result=align_result)
-    # Implement extraction logic here
+
+    # Access output from "ALIGN" task
+    align_result = await context.task_output(align)
+    print(f"Align result: {align_result.result}")
+
+    ## TODO: Implement extraction logic here
 
     print("******* Extraction complete *******")
-    return {"extracted_data": "extracted_result", "status": "success"}
+    return ExtractOutput(
+        result={
+            "extracted_data": "EXTRACTED SUCCESS"
+        },
+        status="success"
+    )
 
 # Example function to trigger the workflow
 def trigger_workflow(input_data: Dict[str, Any]):

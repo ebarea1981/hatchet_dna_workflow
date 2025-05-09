@@ -1,5 +1,3 @@
-from hatchet_sdk import Hatchet
-
 from hatchet_sample.workflows import dna_workflow
 from hatchet_sample import hatchet
 
