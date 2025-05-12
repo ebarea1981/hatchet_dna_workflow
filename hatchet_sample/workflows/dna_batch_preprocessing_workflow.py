@@ -1,9 +1,14 @@
 from hatchet_sdk import Hatchet, Context, DurableContext
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Dict, List
 from datetime import timedelta
 import asyncio
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize Hatchet client
 hatchet = Hatchet(debug=True)
@@ -19,6 +24,12 @@ class DNAAlignmentInput(BaseModel):
 class BatchPreprocessingInput(BaseModel):
     control_samples: List[DNAAlignmentInput]  # List of control sample inputs
     other_samples: List[DNAAlignmentInput]   # List of non-control (e.g., treatment) sample inputs
+
+    @model_validator(mode='after')
+    def validate_control_samples(self):
+        if not self.control_samples:
+            raise ValueError("control_samples must not be empty")
+        return self
 
 # Output models for dna_preprocessing tasks
 class AlignmentOutput(BaseModel):
@@ -39,7 +50,7 @@ class BatchPreprocessingOutput(BaseModel):
 # Child workflow: dna_preprocessing
 dna_preprocessing = hatchet.workflow(name="DNAPreprocessing", input_validator=DNAAlignmentInput)
 
-@dna_preprocessing.durable_task(execution_timeout="4h")
+@dna_preprocessing.durable_task(execution_timeout="4h", retries=3)
 async def dna_alignment_task(input: DNAAlignmentInput, ctx: DurableContext) -> Dict[str, str]:
     """
     Durable task to simulate NVIDIA Clara Parabricks for DNA alignment.
@@ -51,7 +62,7 @@ async def dna_alignment_task(input: DNAAlignmentInput, ctx: DurableContext) -> D
         output_bam = os.path.join(input.output_dir, f"{input.sample_id}_aligned.bam")
         if os.path.exists(output_bam):
             ctx.log(f"Output {output_bam} already exists, skipping alignment")
-            return AlignmentOutput(bam_file=output_bam).dict()
+            return AlignmentOutput(bam_file=output_bam).model_dump()
         
         # Simulate Parabricks command
         cmd = [
@@ -67,13 +78,13 @@ async def dna_alignment_task(input: DNAAlignmentInput, ctx: DurableContext) -> D
         await ctx.aio_sleep_for(duration=timedelta(seconds=5))
         
         ctx.log(f"Alignment completed, output: {output_bam}")
-        return AlignmentOutput(bam_file=output_bam).dict()
+        return AlignmentOutput(bam_file=output_bam).model_dump()
     
     except Exception as e:
         ctx.log(f"Error in DNA alignment for sample {input.sample_id}: {str(e)}")
         raise
 
-@dna_preprocessing.durable_task(parents=[dna_alignment_task], execution_timeout="1h")
+@dna_preprocessing.durable_task(parents=[dna_alignment_task], execution_timeout="1h", retries=3)
 async def methyldackel_task(input: DNAAlignmentInput, ctx: DurableContext) -> Dict[str, str]:
     """
     Durable task to simulate MethylDackel extract command.
@@ -88,7 +99,7 @@ async def methyldackel_task(input: DNAAlignmentInput, ctx: DurableContext) -> Di
         output_methyl = os.path.join(input.output_dir, f"{input.sample_id}_methylation.bed")
         if os.path.exists(output_methyl):
             ctx.log(f"Output {output_methyl} already exists, skipping MethylDackel")
-            return MethylDackelOutput(methylation_data=output_methyl).dict()
+            return MethylDackelOutput(methylation_data=output_methyl).model_dump()
         
         # Simulate MethylDackel command
         cmd = [
@@ -102,7 +113,7 @@ async def methyldackel_task(input: DNAAlignmentInput, ctx: DurableContext) -> Di
         await ctx.aio_sleep_for(duration=timedelta(seconds=3))
         
         ctx.log(f"MethylDackel completed, output: {output_methyl}")
-        return MethylDackelOutput(methylation_data=output_methyl).dict()
+        return MethylDackelOutput(methylation_data=output_methyl).model_dump()
     
     except Exception as e:
         ctx.log(f"Error in MethylDackel for sample {input.sample_id}: {str(e)}")
@@ -111,7 +122,7 @@ async def methyldackel_task(input: DNAAlignmentInput, ctx: DurableContext) -> Di
 # Parent workflow: DNABatchPreprocessing
 batch_preprocessing = hatchet.workflow(name="DNABatchPreprocessing", input_validator=BatchPreprocessingInput)
 
-@batch_preprocessing.durable_task(execution_timeout="5h")
+@batch_preprocessing.durable_task(execution_timeout="5h", retries=3)
 async def spawn_preprocessing_tasks(input: BatchPreprocessingInput, ctx: DurableContext) -> Dict[str, Dict[str, str]]:
     """
     Durable task to run dna_preprocessing workflows for each sample in parallel.
@@ -140,7 +151,10 @@ async def spawn_preprocessing_tasks(input: BatchPreprocessingInput, ctx: Durable
         for result, sample in zip(results, all_samples):
             try:
                 ctx.log(f"Child workflow for sample {sample.sample_id} completed")
-                aggregated_results[sample.sample_id] = result["dna_alignment_task"] | result["methyldackel_task"]
+                if "methyldackel_task" not in result:
+                    ctx.log(f"Error: methyldackel_task output missing for sample {sample.sample_id}")
+                    raise ValueError("methyldackel_task output missing")
+                aggregated_results[sample.sample_id] = MethylDackelOutput(**result["methyldackel_task"]).model_dump()
             except Exception as e:
                 ctx.log(f"Child workflow for sample {sample.sample_id} failed: {str(e)}")
                 raise
@@ -152,7 +166,7 @@ async def spawn_preprocessing_tasks(input: BatchPreprocessingInput, ctx: Durable
         ctx.log(f"Error in running child workflows: {str(e)}")
         raise
 
-@batch_preprocessing.durable_task(parents=[spawn_preprocessing_tasks], execution_timeout="1h")
+@batch_preprocessing.durable_task(parents=[spawn_preprocessing_tasks], execution_timeout="1h", retries=3)
 async def create_reference_task(input: BatchPreprocessingInput, ctx: DurableContext) -> Dict[str, str]:
     """
     Durable task to create a reference sample (centroid) from control samples.
@@ -167,7 +181,7 @@ async def create_reference_task(input: BatchPreprocessingInput, ctx: DurableCont
         reference_file = "/path/to/output/reference_methylation.bed"
         if os.path.exists(reference_file):
             ctx.log(f"Reference file {reference_file} already exists, skipping creation")
-            return ReferenceOutput(reference_file=reference_file).dict()
+            return ReferenceOutput(reference_file=reference_file).model_dump()
         
         # Collect methylation data from control samples
         control_methylation_files = [
@@ -189,13 +203,13 @@ async def create_reference_task(input: BatchPreprocessingInput, ctx: DurableCont
         await ctx.aio_sleep_for(duration=timedelta(seconds=5))
         
         ctx.log(f"Reference creation completed, output: {reference_file}")
-        return ReferenceOutput(reference_file=reference_file).dict()
+        return ReferenceOutput(reference_file=reference_file).model_dump()
     
     except Exception as e:
         ctx.log(f"Error in reference creation: {str(e)}")
         raise
 
-@batch_preprocessing.durable_task(parents=[create_reference_task], execution_timeout="1h")
+@batch_preprocessing.durable_task(parents=[create_reference_task], execution_timeout="1h", retries=3)
 async def post_processing_task(input: BatchPreprocessingInput, ctx: DurableContext) -> Dict[str, Dict[str, str]]:
     """
     Durable task to process results from all samples using the reference sample.
@@ -210,19 +224,19 @@ async def post_processing_task(input: BatchPreprocessingInput, ctx: DurableConte
         # Combine all samples
         all_samples = input.control_samples + input.other_samples
         
-        # Aggregate methylation data with reference (placeholder logic)
+        # Aggregate methylation data with reference
         aggregated_results = {}
         for sample in all_samples:
             sample_id = sample.sample_id
             methylation_data = preprocessing_results[sample_id]["methylation_data"]
-            ctx.log(f"Processing methylation data for sample {sample_id}: {methylation_data} against reference")
-            # Simulate computation with reference
-            aggregated_results[sample_id] = MethylDackelOutput(methylation_data=methylation_data).dict()
+            ctx.log(f"Computing differential methylation for sample {sample_id}: {methylation_data} against reference {reference_file}")
+            # Simulate differential methylation analysis
+            aggregated_results[sample_id] = MethylDackelOutput(methylation_data=methylation_data).model_dump()
         
         ctx.log("Post-processing completed")
         return {
             "results": aggregated_results,
-            "reference": ReferenceOutput(reference_file=reference_file).dict()
+            "reference": ReferenceOutput(reference_file=reference_file).model_dump()
         }
     
     except Exception as e:
@@ -230,11 +244,21 @@ async def post_processing_task(input: BatchPreprocessingInput, ctx: DurableConte
         raise
 
 def start_worker():
-    worker = hatchet.worker("test-worker", slots=1, workflows=[dna_preprocessing, batch_preprocessing])
-    worker.start()
+    """Start a Hatchet worker to process workflows."""
+    logger.info("Starting Hatchet worker 'test-worker' with 6 slots")
+    try:
+        worker = hatchet.worker("test-worker", slots=6, workflows=[dna_preprocessing, batch_preprocessing])
+        logger.info("Worker registered successfully")
+        worker.start()
+    except Exception as e:
+        logger.error(f"Failed to start worker: {str(e)}")
+        raise
 
 # Example usage
 async def run_batch_workflow():
+    """Run the batch preprocessing workflow."""
+    logger.info("Preparing to run DNABatchPreprocessing workflow")
+    
     # Define 6 samples (3 control, 3 treatment)
     control_samples = [
         DNAAlignmentInput(
@@ -277,10 +301,15 @@ async def run_batch_workflow():
         )
     ]
     
-    # result = await hatchet.run_workflow("DNABatchPreprocessing", input_data)
     input_data = BatchPreprocessingInput(control_samples=control_samples, other_samples=other_samples)
-    result = await batch_preprocessing.aio_run(input_data)
-    print(f"Batch workflow result: {result}")
+    logger.info("Running DNABatchPreprocessing workflow")
+    try:
+        result = await batch_preprocessing.aio_run(input_data)
+        logger.info(f"Batch workflow result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Workflow execution failed: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     import asyncio

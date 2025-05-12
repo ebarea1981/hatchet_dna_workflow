@@ -16,9 +16,10 @@ class ExtractOutput(BaseModel):
     result: Dict[str, Any]
     status: str
 
-class WorkflowOutput(BaseModel):
-    align_result: Dict[str, Any]
-    extract_result: Dict[str, Any]
+class ReadcountsOutput(BaseModel):
+    result: Dict[str, Any]
+    status: str
+    data: Dict[str, Any]
 
 # Define the DNA Workflow
 dna_workflow = hatchet.workflow(name="dna-workflow", on_events=["dna:process"])
