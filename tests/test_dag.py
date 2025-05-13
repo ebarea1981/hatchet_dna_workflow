@@ -1,7 +1,7 @@
 import time
 import pytest
 
-from hatchet_sample.workflows.dna_workflow import dna_workflow
+from hatchet_dna_workflow.workflows.dna_workflow import dna_workflow
 from hatchet_sdk import Hatchet
 
 @pytest.mark.asyncio(loop_scope="session")

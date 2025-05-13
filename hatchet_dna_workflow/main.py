@@ -1,4 +1,4 @@
-from hatchet_sample.workflows import WorkflowInput, trigger_workflow
+from hatchet_dna_workflow.workflows import WorkflowInput, trigger_workflow
 
 
 def main() -> None:

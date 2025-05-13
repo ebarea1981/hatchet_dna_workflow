@@ -1,5 +1,5 @@
-from hatchet_sample.workflows import dna_workflow
-from hatchet_sample import hatchet
+from hatchet_dna_workflow.workflows import dna_workflow
+from hatchet_dna_workflow import hatchet
 
 # Define workers with specific labels for high memory
 def start_high_memory_worker(dna_workflow, slots=5):

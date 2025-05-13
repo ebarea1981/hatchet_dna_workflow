@@ -2,7 +2,7 @@ from hatchet_sdk import Context, WorkerLabelComparator
 from hatchet_sdk.labels import DesiredWorkerLabel
 from typing import Dict, Any
 from pydantic import BaseModel
-from hatchet_sample import hatchet
+from hatchet_dna_workflow import hatchet
 
 # Define input and output models using Pydantic for type safety
 class WorkflowInput(BaseModel):

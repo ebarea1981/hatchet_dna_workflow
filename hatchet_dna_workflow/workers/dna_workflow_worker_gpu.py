@@ -1,5 +1,5 @@
-from hatchet_sample.workflows import dna_workflow
-from hatchet_sample import hatchet
+from hatchet_dna_workflow.workflows import dna_workflow
+from hatchet_dna_workflow import hatchet
 
 # Define workers with specific labels for GPU
 def start_gpu_worker(dna_workflow, slots=1):

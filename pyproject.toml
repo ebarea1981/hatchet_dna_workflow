@@ -1,5 +1,5 @@
 [project]
-name = "hatchet-sample"
+name = "hatchet-dna-workflow"
 version = "0.1.0"
 description = "A DNA workflow using Hatchet with GPU and high-memory workers"
 authors = [{name = "Eduardo Barea", email = "ebarea@epimethyL.com"}]
