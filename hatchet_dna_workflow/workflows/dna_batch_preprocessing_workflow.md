@@ -21,8 +21,8 @@ The project consists of two Hatchet workflows:
 - **Input**: `BatchPreprocessingInput` (Pydantic model with `control_samples` and `other_samples`, each a list of `DNAAlignmentInput`).
 - **Tasks**:
   - `spawn_preprocessing_tasks`: Runs `dna_preprocessing` workflows in parallel for all samples using `aio_run_many` (`execution_timeout="5h"`, `retries=3`).
-  - `create_reference_task`: Aggregates control samples’ methylation data into a reference file (simulated, `execution_timeout="1h"`, `retries=3`).
-  - `post_processing_task`: Processes all samples’ methylation data against the reference (placeholder for differential analysis, `execution_timeout="1h"`, `retries=3`).
+  - `create_reference_task`: Aggregates control samples' methylation data into a reference file (simulated, `execution_timeout="1h"`, `retries=3`).
+  - `post_processing_task`: Processes all samples' methylation data against the reference (placeholder for differential analysis, `execution_timeout="1h"`, `retries=3`).
 - **Output**: `BatchPreprocessingOutput` with a dictionary of sample results and the reference file.
 
 ## Setup Instructions
@@ -141,8 +141,8 @@ The workflow runs in prototyping mode, simulating commands with logging and slee
    - Ensure `/path/to/output` is a shared filesystem or cloud storage (e.g., S3) accessible to all tasks.
 
 ## Additional Notes
-- **Monitoring**: Use Hatchet’s dashboard to track workflow progress, task logs, and errors (https://docs.hatchet.run/home/logging).
-- **Scalability**: The worker uses 6 slots for 6 parallel workflows. For larger datasets, adjust `slots` or add workers. Reintroduce task-level concurrency (`concurrency={"key": "gpu", "limit": 2}`) once the SDK’s format is confirmed.
+- **Monitoring**: Use Hatchet's dashboard to track workflow progress, task logs, and errors (https://docs.hatchet.run/home/logging).
+- **Scalability**: The worker uses 6 slots for 6 parallel workflows. For larger datasets, adjust `slots` or add workers. Reintroduce task-level concurrency (`concurrency={"key": "gpu", "limit": 2}`) once the SDK's format is confirmed.
 - **Error Handling**: Tasks include retries (`retries=3`) and idempotency checks to handle transient failures.
 - **Future Improvements**:
   - Implement actual methylation analysis tools in `create_reference_task` and `post_processing_task`.
@@ -154,4 +154,16 @@ The workflow runs in prototyping mode, simulating commands with logging and slee
 - **Deprecation Warnings**: Ensure Pydantic 2.x is installed (`pip install --upgrade pydantic`). The workflow uses `model_dump()` for compatibility.
 - **Missing Outputs**: If idempotency checks fail, remove `os.path.exists` checks or create dummy files for prototyping.
 - **Worker Issues**: Verify the worker is running before executing the workflow. Check logs for registration errors.
-- **Contact Support**: For SDK issues (e.g., concurrency parameter), report to Hatchet’s GitHub (https://github.com/hatchet-dev/hatchet).
+- **Contact Support**: For SDK issues (e.g., concurrency parameter), report to Hatchet's GitHub (https://github.com/hatchet-dev/hatchet).
+
+## Workflow Diagram
+```
+DNABatchPreprocessing Workflow
+├── spawn_preprocessing_tasks
+│   ├── dna_preprocessing (Child Workflow for each sample)
+│   │   ├── dna_alignment_task
+│   │   └── methyldackel_task (depends on dna_alignment_task)
+│   └── (Runs in parallel for all samples)
+├── create_reference_task (depends on spawn_preprocessing_tasks)
+└── post_processing_task (depends on create_reference_task)
+```
