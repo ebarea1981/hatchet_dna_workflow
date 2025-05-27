@@ -27,10 +27,13 @@ dna_workflow = hatchet.workflow(name="dna-workflow", on_events=["dna:process"])
 @dna_workflow.task(
     name="align",
     desired_worker_labels={
-        'gpu': DesiredWorkerLabel(value='nvidia', required=True),
+        'gpu': DesiredWorkerLabel(value='nvidia', required=True, comparator=WorkerLabelComparator.EQUAL),
     }
 )
 def align(workflow_input: WorkflowInput, context: Context) -> AlignOutput:
+
+    assert context.worker._labels.get('gpu', False) == 'nvidia'
+
     # This task runs on a worker with NVidia GPU
     print("******* Performing alignment on worker with NVidia GPU... *******")
     print(f"Workflow input: {workflow_input}")
