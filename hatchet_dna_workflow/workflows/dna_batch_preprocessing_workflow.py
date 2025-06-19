@@ -91,7 +91,7 @@ async def methyldackel_task(input: DNAAlignmentInput, ctx: DurableContext) -> Di
     """
     try:
         # Get parent task output
-        alignment_output = await ctx.task_output(dna_alignment_task)
+        alignment_output = ctx.task_output(dna_alignment_task)
         bam_file = alignment_output["bam_file"]
         ctx.log(f"Using BAM file for sample {input.sample_id}: {bam_file}")
         
@@ -175,7 +175,7 @@ async def create_reference_task(input: BatchPreprocessingInput, ctx: DurableCont
         ctx.log("Starting creation of reference sample from control samples")
         
         # Get preprocessing results
-        preprocessing_results = await ctx.task_output(spawn_preprocessing_tasks)
+        preprocessing_results = ctx.task_output(spawn_preprocessing_tasks)
         
         # Ensure idempotency: Check if reference file exists
         reference_file = "/path/to/output/reference_methylation.bed"
@@ -216,8 +216,8 @@ async def post_processing_task(input: BatchPreprocessingInput, ctx: DurableConte
     """
     try:
         # Get results from spawn_preprocessing_tasks and create_reference_task
-        preprocessing_results = await ctx.task_output(spawn_preprocessing_tasks)
-        reference_result = await ctx.task_output(create_reference_task)
+        preprocessing_results = ctx.task_output(spawn_preprocessing_tasks)
+        reference_result = ctx.task_output(create_reference_task)
         reference_file = reference_result["reference_file"]
         ctx.log(f"Starting post-processing with reference: {reference_file}")
         
